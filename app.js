@@ -3,6 +3,7 @@ const Express = require("express")
 const ExpressGraphQL = require("express-graphql")
 const BuildSchema = require("graphql").buildSchema;
 const UUID = require("uuid")
+const cors = require("cors")
 
 
 async function openDB(dbName) {
@@ -94,7 +95,7 @@ async function start() {
 
   let app = Express()
 
-  app.use("/graphql", ExpressGraphQL({
+  app.use("/graphql", cors(), ExpressGraphQL({
     schema: schema,
     rootValue: resolvers,
     graphiql: true
