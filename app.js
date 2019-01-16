@@ -1,9 +1,9 @@
 const nano = require("nano")("http://localhost:5984")
-const Express = require("express")
-const ExpressGraphQL = require("express-graphql")
-const BuildSchema = require("graphql").buildSchema;
-const UUID = require("uuid")
-const cors = require("cors")
+  ,Express = require("express")
+  ,ExpressGraphQL = require("express-graphql")
+  ,BuildSchema = require("graphql").buildSchema
+  ,cors = require("cors")
+  ,crypto = require('crypto')
 
 
 async function openDB(dbName) {
@@ -32,8 +32,6 @@ async function start() {
 
   let schema = BuildSchema(`
     type Query {
-      URL(_id: String): URL,
-      fromAddress(url: String): URL
       top: [URL]
     }
     type URL {
@@ -43,36 +41,27 @@ async function start() {
         requests: Int
     }
     type Mutation {
-      createURL(title: String, title: String, url: String): URL,
-      incrementRequests (url: String): Int
+      shorten(url: String): URL
     }
-`)
-
+  `)
 
   let resolvers = {
-    createURL: async (data) => {
-      let _id = UUID.v4()
+    shorten: async (data) => {
+      let shasum = crypto.createHash('sha1')
+      shasum.update(data.url)
+      let _id = shasum.digest('hex')
+      let existing
+      try {
+        existing = await bucket.get(_id)
+        return existing
+      } catch (err) {
+        console.log(err)
+      }
+
       if (typeof data.title === 'undefined') data.title = "Untitled"
       data.requests = 0
       await bucket.insert({ ...data }, _id)
       return { _id }
-    },
-    URL: async (query) => {
-      try {
-        let ret = await bucket.get(query._id)
-        return ret
-      } catch (err) {
-        return err
-      }
-    },
-    fromAddress: async (query) => {
-      let ret = await bucket.find({
-        selector: {
-          url: { "$eq": query.url },
-        },
-        limit: 1
-      })
-      return ret.docs[0]
     },
     top: async (query) => {
       let ret = await bucket.find({
@@ -83,13 +72,6 @@ async function start() {
         limit: 100
       })
       return ret.docs
-    },
-    incrementRequests: async (query) => {
-      let doc = await resolvers.fromAddress(query)
-      if (typeof doc.requests === 'undefined') doc.requests = 0
-      doc.requests++
-      await bucket.insert(doc)
-      return doc.requests
     }
   }
 
@@ -100,6 +82,17 @@ async function start() {
     rootValue: resolvers,
     graphiql: true
   }))
+
+  app.use("/:id", async (req, res, next) => {
+    try {
+      let ret = await bucket.get(req.params.id)
+      ret.requests++
+      bucket.insert(ret)
+      return res.redirect(ret.url, 301)
+    } catch (err) {
+      return res.redirect("/")
+    }
+  })
 
   app.listen(3000, () => {
     console.log("Listening at :3000")
