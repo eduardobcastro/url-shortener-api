@@ -1,9 +1,11 @@
 const nano = require("nano")("http://localhost:5984")
-  ,Express = require("express")
-  ,ExpressGraphQL = require("express-graphql")
-  ,BuildSchema = require("graphql").buildSchema
+  ,express = require("express")
+  ,expressGraphQL = require("express-graphql")
+  ,buildSchema = require("graphql").buildSchema
   ,cors = require("cors")
   ,crypto = require('crypto')
+  ,requestPromise = require('request-promise')
+  ,cheerio = require('cheerio')
 
 
 async function openDB(dbName) {
@@ -30,7 +32,7 @@ async function openDB(dbName) {
 async function start() {
   let bucket = await openDB("urls")
 
-  let schema = BuildSchema(`
+  let schema = buildSchema(`
     type Query {
       top: [URL]
     }
@@ -57,8 +59,13 @@ async function start() {
       } catch (err) {
         console.log(err)
       }
-
-      if (typeof data.title === 'undefined') data.title = "Untitled"
+      // Get page title
+      let $ = await requestPromise({
+        uri: data.url,
+        transform: body => cheerio.load(body)
+      })
+      let title = $("head > title").text()
+      data.title = title || "Untitled"
       data.requests = 0
       await bucket.insert({ ...data }, _id)
       return { _id }
@@ -75,9 +82,9 @@ async function start() {
     }
   }
 
-  let app = Express()
+  let app = express()
 
-  app.use("/graphql", cors(), ExpressGraphQL({
+  app.use("/graphql", cors(), expressGraphQL({
     schema: schema,
     rootValue: resolvers,
     graphiql: true
