@@ -1,4 +1,4 @@
-const nano = require("nano")("http://localhost:5984")
+const nano = require("nano")(process.env.COUCHDB_URL)
   ,express = require("express")
   ,expressGraphQL = require("express-graphql")
   ,buildSchema = require("graphql").buildSchema
