@@ -1,11 +1,11 @@
 const nano = require("nano")(process.env.COUCHDB_URL)
-  ,express = require("express")
-  ,expressGraphQL = require("express-graphql")
-  ,buildSchema = require("graphql").buildSchema
-  ,cors = require("cors")
-  ,crypto = require('crypto')
-  ,requestPromise = require('request-promise')
-  ,cheerio = require('cheerio')
+  , express = require("express")
+  , expressGraphQL = require("express-graphql")
+  , buildSchema = require("graphql").buildSchema
+  , cors = require("cors")
+  , crypto = require('crypto')
+  , requestPromise = require('request-promise')
+  , cheerio = require('cheerio')
 
 
 async function openDB(dbName) {
@@ -51,14 +51,32 @@ async function start() {
     shorten: async (data) => {
       let shasum = crypto.createHash('sha1')
       shasum.update(data.url)
-      let _id = shasum.digest('hex')
-      let existing
-      try {
-        existing = await bucket.get(_id)
-        return existing
-      } catch (err) {
-        console.log(err)
-      }
+      let hash = shasum.digest('hex')
+      let _id
+      let retry = false
+      let size = 1
+      do {
+        _id = hash.substr(0, size)
+        let existing
+        try {
+          existing = await bucket.get(_id)
+        } catch (err) {
+          if (err.statusCode != 404) return err
+          break // not found. will create a new one
+        }
+        // check whether current url hash equals existing hash 
+        shasum = crypto.createHash('sha1')
+        shasum.update(existing.url)
+        let existing_hash = shasum.digest('hex')
+        if (existing_hash === hash) {
+          return existing
+        }
+        // conflict: another url has the same hash
+        size++
+        retry = true
+      } while (retry)
+
+
       // Get page title
       let $ = await requestPromise({
         uri: data.url,
