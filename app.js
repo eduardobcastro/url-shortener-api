@@ -1,4 +1,4 @@
-const nano = require("nano")(process.env.COUCHDB_URL)
+const { getDb } = require("./db.js")
   , express = require("express")
   , expressGraphQL = require("express-graphql")
   , buildSchema = require("graphql").buildSchema
@@ -6,32 +6,7 @@ const nano = require("nano")(process.env.COUCHDB_URL)
   , crypto = require('crypto')
   , requestPromise = require('request-promise')
   , cheerio = require('cheerio')
-
-
-async function openDB(dbName) {
-  let createIndexes = false
-  try {
-    await nano.db.create(dbName)
-    createIndexes = true
-  } catch (err) {
-    if (err.statusCode != 412) {
-      throw err
-    }
-  }
-  let bucket = nano.db.use(dbName)
-  if (createIndexes) {
-    const indexDef = {
-      index: { fields: [{ "requests": "desc" }] },
-      name: 'requestsIndex'
-    }
-    await bucket.createIndex(indexDef)
-  }
-  return bucket
-}
-
 async function start() {
-  let bucket = await openDB("urls")
-
   let schema = buildSchema(`
     type Query {
       top: [URL]
@@ -49,6 +24,7 @@ async function start() {
 
   let resolvers = {
     shorten: async (data) => {
+      let bucket = await getDb("urls")
       let shasum = crypto.createHash('sha1')
       shasum.update(data.url)
       let hash = shasum.digest('hex')
@@ -89,6 +65,7 @@ async function start() {
       return { _id }
     },
     top: async (query) => {
+      let bucket = await getDb("urls")
       let ret = await bucket.find({
         selector: {
           requests: { "$gt": 0 }
@@ -110,10 +87,11 @@ async function start() {
 
   app.use("/:id", async (req, res, next) => {
     try {
+      let bucket = await getDb("urls")
       let ret = await bucket.get(req.params.id)
       ret.requests++
       bucket.insert(ret)
-      return res.redirect(ret.url, 301)
+      return res.redirect(ret.url)
     } catch (err) {
       return res.redirect("/")
     }

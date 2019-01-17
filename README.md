@@ -1,13 +1,9 @@
 # url-shortener
 
-## Project setup
+## Build Docker image
 ```
-yarn install
+yarn build:docker
 ```
 
 ### Starting
-```
-docker run -p 5984:5984 --rm --name my-couchdb -d couchdb
-
-COUCHDB_URL=http://localhost:5984 yarn serve
-```
+See [url-shortener-frontend](https://github.com/eduardobcastro/url-shortener-frontend)

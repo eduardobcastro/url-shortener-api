@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "build:docker": "docker build -t url-shortener-api .",
     "serve": "node app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
